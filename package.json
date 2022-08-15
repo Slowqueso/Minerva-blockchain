@@ -20,8 +20,7 @@
     "hardhat-deploy": "^0.11.12",
     "hardhat-gas-reporter": "^1.0.8",
     "nodemon": "^2.0.19",
-    "solhint": "^3.3.7",
-    "solidity-coverage": "^0.6.7"
+    "solhint": "^3.3.7"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
