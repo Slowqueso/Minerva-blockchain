@@ -1,0 +1,5 @@
+> in joinActivity, isActivityJoinable modifier gets executed first // Fix it by putting it later
+> addTermForACtivity, modifiers have to be arranged
+> modifier to check if user is already in the Activity // To allow users to participate only once
+> upkeep
+> donations 
