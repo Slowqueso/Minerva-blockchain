@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.7;
 import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
-import "@chainlink/contracts/src/v0.8/KeeperCompatible.sol";
 
 /**
  * @title Minerva Activity Contract
@@ -9,7 +8,7 @@ import "@chainlink/contracts/src/v0.8/KeeperCompatible.sol";
  * @notice This contract allows users to create a MOU or Agreement between Activity hosts and Activity Members.
  * @dev Data Price Feeds are implemented for ETH / USD
  */
-contract ActivityContract is KeeperCompatibleInterface {
+contract ActivityContract {
     // Type Declarations
     /**
      * @notice Global Variables for owner, price feed and logical minimum USD for making contract prices.
@@ -172,7 +171,7 @@ contract ActivityContract is KeeperCompatibleInterface {
         uint256 _level,
         uint256 _maxMembers,
         uint256 dateOfCreation,
-        uint256 _waitingPeriodInMonths //DDMMYY
+        uint256 _waitingPeriodInMonths //DDMMYYYY
     ) public payable {
         require(_price <= minUSD[_level - 1], "ETH limit crossed");
         uint256 id = arrayForLength.length + 1;
@@ -261,16 +260,15 @@ contract ActivityContract is KeeperCompatibleInterface {
     }
 
     // Keepers
-
-    function checkUpkeep(
-        bytes memory /* checkData */
-    ) external override returns (bool upkeepNeeded, bytes memory performData) {
-        bool checkIfDayPassed = ((block.timestamp - s_lastUpdated) > 1 days);
+    /**
+     * @dev This function checks if any of the activities need an Upkeep
+     * Going to be called inside `performUpkeep` to check for Activities that are expired.
+     */
+    function checkUpkeep() internal returns (bool upkeepNeeded) {
         bool activitiesAdded = false;
         bool hasBalance = address(this).balance > 0;
-        s_counter++;
         Activity memory activity;
-        if (checkIfDayPassed) {
+        if (arrayForLength.length > 0) {
             for (uint256 i = 1; i < arrayForLength.length + 1; i++) {
                 activity = Activities[i];
                 if (activity.status == ActivityStatus.OPEN) {
@@ -285,17 +283,20 @@ contract ActivityContract is KeeperCompatibleInterface {
                     }
                 }
             }
+        } else {
+            return upkeepNeeded = false;
         }
+
         s_lastUpdated = block.timestamp;
-        upkeepNeeded = (checkIfDayPassed && activitiesAdded && hasBalance);
-        performData = "";
+        upkeepNeeded = (activitiesAdded && hasBalance);
     }
 
-    function performUpkeep(
-        bytes calldata /* performData */
-    ) external override {
-        // (bool upkeepNeeded, ) = checkUpkeep("");
-        // require(!upkeepNeeded, "Upkeep not needed");
+    /**
+     * @dev `performUpkeep` is called by the Time-based Chainlink Keepers called on `1 0,12 * * *`
+     */
+    function performUpkeep() external {
+        bool upkeepNeeded = checkUpkeep();
+        require(upkeepNeeded, "Upkeep not needed");
         Activity storage activity;
         for (uint i = 0; i < activitiesForUpkeep.length; i++) {
             uint256 id = activitiesForUpkeep[i];

@@ -24,6 +24,8 @@
   },
   "dependencies": {
     "@chainlink/contracts": "^0.4.1",
-    "dotenv": "^16.0.1"
+    "bignumber.js": "^9.1.0",
+    "dotenv": "^16.0.1",
+    "eth-price": "^0.1.5"
   }
 }
