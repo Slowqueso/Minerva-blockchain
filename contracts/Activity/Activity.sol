@@ -66,7 +66,7 @@ contract ActivityContract {
         string username;
         uint256 tenureInMonths;
         uint256 dateOfJoin;
-        uint256 forActivity;
+        string forActivity;
         uint256 timeJoined;
     }
 
@@ -74,24 +74,24 @@ contract ActivityContract {
      * @notice struct for each Terms and Conditions for Activities
      */
     struct Term {
-        string title;
-        string desc;
-        uint256 id;
+        string[] title;
+        string[] desc;
+        string id;
     }
 
     // Arrays and Mappings
-    mapping(uint256 => Activity) Activities;
+    mapping(string => Activity) Activities;
     mapping(address => Member) Members;
-    mapping(uint256 => Term[]) Terms;
-    uint256[] arrayForLength;
+    mapping(string => Term[]) Terms;
+    string[] arrayForLength;
     address payable[] memberAddress;
-    uint256[] activitiesForUpkeep;
+    string[] activitiesForUpkeep;
 
     // Security modifiers
     /**
      * @dev to allow only Activity owners to execute the function
      */
-    modifier onlyActivityOwners(uint256 _id) {
+    modifier onlyActivityOwners(string memory _id) {
         require(
             msg.sender == Activities[_id].owner,
             "You are not allowed to perform this task!"
@@ -102,7 +102,7 @@ contract ActivityContract {
     /**
      * @dev Checks activity status and Member requirements
      */
-    modifier isActivityJoinable(uint256 _id) {
+    modifier isActivityJoinable(string memory _id) {
         require(
             Activities[_id].status == ActivityStatus.OPEN &&
                 Activities[_id].members.length <= Activities[_id].maxMembers,
@@ -122,7 +122,7 @@ contract ActivityContract {
     /**
      * @dev To check existence of an activity
      */
-    modifier doesActivityExist(uint256 _id) {
+    modifier doesActivityExist(string memory _id) {
         require(Activities[_id].id > 0, "Activity Does not exist");
         _;
     }
@@ -130,7 +130,7 @@ contract ActivityContract {
     /**
      * @dev to check if the sender is a member of the activity
      */
-    modifier isMemberOfActivity(uint256 _id) {
+    modifier isMemberOfActivity(string memory _id) {
         bool isNotMember = true;
         for (uint256 i = 0; i < Activities[_id].members.length; i++) {
             if (Activities[_id].members[i] == payable(msg.sender)) {
@@ -143,14 +143,14 @@ contract ActivityContract {
 
     //Events
     event ActivityCreated(
-        uint256 _id,
+        string _id,
         string _title,
         uint256 _totalTimeInMonths,
         uint256 _level,
         uint256 dateOfCreation
     );
     event MemberJoined(
-        uint256 _id,
+        string _id,
         string _username,
         uint256 _dateOfJoin,
         uint256 _tenureInMonths
@@ -163,6 +163,7 @@ contract ActivityContract {
      * @dev emits Event - `ActivityCreated`
      */
     function createActivity(
+        string memory _id,
         string memory _username,
         string memory _title,
         string memory _desc,
@@ -194,13 +195,13 @@ contract ActivityContract {
             _username,
             _totalTimeInMonths,
             dateOfCreation,
-            id,
+            _id,
             block.timestamp
         );
-        arrayForLength.push(id);
-        Activities[id] = activity;
+        arrayForLength.push(_id);
+        Activities[_id] = activity;
         emit ActivityCreated(
-            id,
+            _id,
             _title,
             _totalTimeInMonths,
             _level,
@@ -215,7 +216,7 @@ contract ActivityContract {
      * @notice Function for external users (in terms of Activity) to participate in the Activity.
      */
     function joinActivity(
-        uint256 _activityID,
+        string memory _activityID,
         string memory _username,
         uint256 _dateOfJoin,
         uint256 _tenureInMonths
@@ -227,11 +228,11 @@ contract ActivityContract {
         isMemberOfActivity(_activityID)
     {
         Activity storage activity = Activities[_activityID];
-        require(
-            getConversionRate(msg.value) <= activity.joinPrice &&
-                getConversionRate(msg.value) >= activity.joinPrice - 1,
-            "Send required ETH"
-        );
+        // require(
+        //     getConversionRate(msg.value) <= activity.joinPrice &&
+        //         getConversionRate(msg.value) >= activity.joinPrice - 1,
+        //     "Send required ETH"
+        // );
         Members[msg.sender] = Member(
             _username,
             _tenureInMonths,
@@ -250,9 +251,9 @@ contract ActivityContract {
      * @notice Method to allow activity owners to add terms and conditions to their Activities
      */
     function addTermForActivity(
-        uint256 _activityID,
-        string memory _title,
-        string memory _desc
+        string memory _activityID,
+        string[] memory _title,
+        string[] memory _desc
     ) public doesActivityExist(_activityID) onlyActivityOwners(_activityID) {
         Term[] storage term = Terms[_activityID];
         term.push(Term(_title, _desc, _activityID));
@@ -270,14 +271,14 @@ contract ActivityContract {
         Activity memory activity;
         if (arrayForLength.length > 0) {
             for (uint256 i = 1; i < arrayForLength.length + 1; i++) {
-                activity = Activities[i];
+                activity = Activities[arrayForLength[i]];
                 if (activity.status == ActivityStatus.OPEN) {
                     if (
                         !((block.timestamp - activity.dateOfCreation) >
                             (activity.waitingPeriodInMonths * 30 * 1 days))
                     ) {
                         if (!(activity.members.length > 1)) {
-                            activitiesForUpkeep.push(i);
+                            activitiesForUpkeep.push(arrayForLength[i]);
                             activitiesAdded = true;
                         }
                     }
@@ -299,7 +300,7 @@ contract ActivityContract {
         require(upkeepNeeded, "Upkeep not needed");
         Activity storage activity;
         for (uint i = 0; i < activitiesForUpkeep.length; i++) {
-            uint256 id = activitiesForUpkeep[i];
+            string memory id = activitiesForUpkeep[i];
             activity = Activities[id];
             activity.status = ActivityStatus.CLOSED;
         }
@@ -324,7 +325,7 @@ contract ActivityContract {
         return ethAmountInUsd / 1e36;
     }
 
-    function getActivity(uint256 activityID)
+    function getActivity(string memory activityID)
         public
         view
         returns (Activity memory)
@@ -333,11 +334,19 @@ contract ActivityContract {
         return (returnActivity);
     }
 
+    function getJoinPrice(string memory activityID)
+        public
+        view
+        returns (uint256)
+    {
+        return Activities[activityID].joinPrice;
+    }
+
     function getOwner() public view onlyOwner returns (address) {
         return (i_owner);
     }
 
-    function getMembersOfActivity(uint256 _activityID)
+    function getMembersOfActivity(string memory _activityID)
         public
         view
         returns (address payable[] memory)
@@ -357,7 +366,7 @@ contract ActivityContract {
         return (member);
     }
 
-    function getTermsForActivity(uint256 _activityID)
+    function getTermsForActivity(string memory _activityID)
         public
         view
         returns (Term[] memory)
