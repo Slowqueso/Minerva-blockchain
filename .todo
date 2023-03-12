@@ -1,5 +1,2 @@
-- donations
-
-- Upkeep functions testing and
-
-- Keeper setup
+- Testing the whole contract and it's test cases
+- Optimizing the Contract by using events as storages

@@ -13,11 +13,15 @@ contract ActivityContract {
     /**
      * @notice Global Variables for owner, price feed and logical minimum USD for making contract prices.
      */
-    uint256[] internal minUSD = [3, 20, 40, 60, 100];
+    uint256[] internal maxJoiningPrice = [5, 10, 30, 50, 100];
+    uint256[] internal minCredForActivity = [100, 300, 1000, 1500, 2000];
     AggregatorV3Interface private s_priceFeed;
     address private immutable i_owner;
     uint256 private s_lastUpdated;
-    uint256 private s_counter;
+    uint256 private s_upkeepCounter;
+    uint256 private s_userCounter = 0;
+    uint256 private s_activityCounter = 0;
+    uint256 private s_ownerFunds = 0;
 
     // Custom Type Variables
     /**
@@ -44,7 +48,7 @@ contract ActivityContract {
      * @notice struct for `Activities`
      */
     struct Activity {
-        uint256 id;
+        string id;
         address payable owner;
         string title;
         string desc;
@@ -55,7 +59,9 @@ contract ActivityContract {
         uint256 totalTimeInMonths;
         uint256 maxMembers;
         address payable[] members;
-        uint256 waitingPeriodInMonths;
+        uint256 _waitUntil;
+        uint256 donationReceived;
+        uint256 donationBalance;
     }
 
     /**
@@ -66,7 +72,7 @@ contract ActivityContract {
         string username;
         uint256 tenureInMonths;
         uint256 dateOfJoin;
-        string forActivity;
+        uint256 forActivity;
         uint256 timeJoined;
     }
 
@@ -76,22 +82,52 @@ contract ActivityContract {
     struct Term {
         string[] title;
         string[] desc;
-        string id;
+        uint256 id;
+    }
+
+    /*
+     * @notice struct for the Funders/Donors for an activity
+     */
+    struct Funder {
+        address sender;
+        uint256 userPublicID;
+        uint256 donationAmount;
+    }
+
+    struct Task {
+        address creator;
+        address assignee;
+        string title;
+        string description;
+        uint rewardInD;
+        uint dueDate;
+        uint creditScoreReward;
+        bool completed;
+        uint256 assignedDate;
+        uint256 rewardValue;
     }
 
     // Arrays and Mappings
-    mapping(string => Activity) Activities;
+    mapping(address => uint256) UserIdToCredits;
+    mapping(address => bool) UserRegistration;
+    mapping(uint256 => Activity) Activities;
+    mapping(uint256 => Task[]) Tasks;
     mapping(address => Member) Members;
-    mapping(string => Term[]) Terms;
-    string[] arrayForLength;
+    mapping(uint256 => Term[]) Terms;
+    mapping(uint256 => Funder[]) Funders;
+    uint256[] activitiesForUpkeep;
+
+    /**
+     * @notice This Array gets resetted to default i.e [] after every alteration
+     * @dev strictly use for storing arrays into structs.
+     */
     address payable[] memberAddress;
-    string[] activitiesForUpkeep;
 
     // Security modifiers
     /**
      * @dev to allow only Activity owners to execute the function
      */
-    modifier onlyActivityOwners(string memory _id) {
+    modifier onlyActivityOwners(uint256 _id) {
         require(
             msg.sender == Activities[_id].owner,
             "You are not allowed to perform this task!"
@@ -102,7 +138,7 @@ contract ActivityContract {
     /**
      * @dev Checks activity status and Member requirements
      */
-    modifier isActivityJoinable(string memory _id) {
+    modifier isActivityJoinable(uint256 _id) {
         require(
             Activities[_id].status == ActivityStatus.OPEN &&
                 Activities[_id].members.length <= Activities[_id].maxMembers,
@@ -122,15 +158,15 @@ contract ActivityContract {
     /**
      * @dev To check existence of an activity
      */
-    modifier doesActivityExist(string memory _id) {
-        require(Activities[_id].id > 0, "Activity Does not exist");
+    modifier doesActivityExist(uint256 _id) {
+        require(Activities[_id].level > 0, "Activity Does not exist");
         _;
     }
 
     /**
      * @dev to check if the sender is a member of the activity
      */
-    modifier isMemberOfActivity(string memory _id) {
+    modifier isMemberOfActivity(uint256 _id) {
         bool isNotMember = true;
         for (uint256 i = 0; i < Activities[_id].members.length; i++) {
             if (Activities[_id].members[i] == payable(msg.sender)) {
@@ -141,21 +177,95 @@ contract ActivityContract {
         _;
     }
 
+    /**
+     *
+     * @dev to check if the sender is a registered user
+     */
+    modifier isRegisteredUser() {
+        require(
+            UserRegistration[msg.sender],
+            "You are not a registered user, please register first!"
+        );
+        _;
+    }
+
     //Events
+    event UserRegistered(address _userAddress, uint256 _id, uint256 _timestamp);
+
     event ActivityCreated(
-        string _id,
+        address _owner,
+        uint256 _id,
         string _title,
         uint256 _totalTimeInMonths,
         uint256 _level,
         uint256 dateOfCreation
     );
     event MemberJoined(
-        string _id,
-        string _username,
+        uint256 _activityId,
+        address _memberAddress,
         uint256 _dateOfJoin,
         uint256 _tenureInMonths
     );
+
     event TermAdded(Term[] terms);
+
+    event DonationMade(
+        address _sender,
+        uint256 _activityID,
+        uint256 _userPublicID,
+        uint256 _donationAmount,
+        uint256 _timeStamp,
+        uint256 _totalDonationReceived
+    );
+
+    event MoneyWithdrawn(
+        uint256 _activityID,
+        uint256 _amount,
+        uint256 _timeStamp
+    );
+
+    event TaskCreated(
+        address _creator,
+        address _assignee,
+        string _description,
+        uint _rewardInD,
+        uint _dueDate,
+        uint _creditScoreReward,
+        uint256 _timeStamp
+    );
+
+    event TaskCompleted(
+        address _creator,
+        address _assignee,
+        uint256 _taskID,
+        uint256 _activityID,
+        uint256 _completionTime,
+        bool _completed,
+        uint256 _rewardValue
+    );
+
+    // Owner Functions
+    /**
+     * @notice Function to add funds to the contract
+     * @dev Only the owner of the contract can execute this function
+     */
+    function addFundsToContract() public payable onlyOwner {
+        s_ownerFunds += msg.value;
+    }
+
+    // Register User
+    /**
+     * @notice Function for registering a user
+     * @dev emits Event - `UserRegistered`
+     */
+
+    function registerUser() public {
+        require(!UserRegistration[msg.sender], "User already registered");
+        s_userCounter++;
+        UserIdToCredits[msg.sender] += 100;
+        UserRegistration[msg.sender] = true;
+        emit UserRegistered(msg.sender, s_userCounter, block.timestamp);
+    }
 
     // Create Activity
     /**
@@ -171,14 +281,21 @@ contract ActivityContract {
         uint256 _price,
         uint256 _level,
         uint256 _maxMembers,
-        uint256 dateOfCreation,
-        uint256 _waitingPeriodInMonths //DDMMYYYY
-    ) public payable {
-        require(_price <= minUSD[_level - 1], "ETH limit crossed");
-        uint256 id = arrayForLength.length + 1;
+        uint256 _waitingPeriodInMonths
+    ) public payable isRegisteredUser {
+        require(_price <= maxJoiningPrice[_level - 1], "ETH limit crossed");
+        require(
+            UserIdToCredits[msg.sender] >= minCredForActivity[_level - 1],
+            "Not Enough Credits for creating the activity!"
+        );
+        uint256 dateOfCreation = block.timestamp;
+        s_activityCounter++;
+        uint256 id = s_activityCounter;
         memberAddress.push(payable(msg.sender));
+        uint256 _waitUntil = block.timestamp +
+            (_waitingPeriodInMonths * 30 days);
         Activity memory activity = Activity(
-            id,
+            _id,
             payable(msg.sender),
             _title,
             _desc,
@@ -189,19 +306,21 @@ contract ActivityContract {
             _totalTimeInMonths,
             _maxMembers,
             memberAddress,
-            _waitingPeriodInMonths
+            _waitUntil,
+            0,
+            0
         );
         Members[msg.sender] = Member(
             _username,
             _totalTimeInMonths,
             dateOfCreation,
-            _id,
+            id,
             block.timestamp
         );
-        arrayForLength.push(_id);
-        Activities[_id] = activity;
+        Activities[id] = activity;
         emit ActivityCreated(
-            _id,
+            msg.sender,
+            id,
             _title,
             _totalTimeInMonths,
             _level,
@@ -216,9 +335,8 @@ contract ActivityContract {
      * @notice Function for external users (in terms of Activity) to participate in the Activity.
      */
     function joinActivity(
-        string memory _activityID,
+        uint256 _activityID,
         string memory _username,
-        uint256 _dateOfJoin,
         uint256 _tenureInMonths
     )
         public
@@ -226,13 +344,15 @@ contract ActivityContract {
         doesActivityExist(_activityID)
         isActivityJoinable(_activityID)
         isMemberOfActivity(_activityID)
+        isRegisteredUser
     {
+        uint256 _dateOfJoin = block.timestamp;
         Activity storage activity = Activities[_activityID];
-        // require(
-        //     getConversionRate(msg.value) <= activity.joinPrice &&
-        //         getConversionRate(msg.value) >= activity.joinPrice - 1,
-        //     "Send required ETH"
-        // );
+        require(
+            (activity.joinPrice - 1) < getConversionRate(msg.value) &&
+                getConversionRate(msg.value) <= (activity.joinPrice + 1),
+            "Not enough ETH"
+        );
         Members[msg.sender] = Member(
             _username,
             _tenureInMonths,
@@ -242,7 +362,12 @@ contract ActivityContract {
         );
         activity.members.push(payable(msg.sender));
         (bool sent, ) = activity.owner.call{value: msg.value}("");
-        emit MemberJoined(_activityID, _username, _dateOfJoin, _tenureInMonths);
+        emit MemberJoined(
+            _activityID,
+            msg.sender,
+            _dateOfJoin,
+            _tenureInMonths
+        );
         require(sent, "Failed to send ETH");
     }
 
@@ -251,7 +376,7 @@ contract ActivityContract {
      * @notice Method to allow activity owners to add terms and conditions to their Activities
      */
     function addTermForActivity(
-        string memory _activityID,
+        uint256 _activityID,
         string[] memory _title,
         string[] memory _desc
     ) public doesActivityExist(_activityID) onlyActivityOwners(_activityID) {
@@ -260,7 +385,203 @@ contract ActivityContract {
         emit TermAdded(term);
     }
 
-    // Keepers
+    // Tasks
+    function retrieveTaxAmountForTask(
+        uint256 _amount
+    ) internal pure returns (uint256) {
+        uint256 taxAmount = (_amount * 20) / 100;
+        return taxAmount;
+    }
+
+    /**
+     * @dev Modifiers - `onlyActivityOwners`, `doesActivityExist`, Events emitted - `TaskCreated`
+     * @notice Method to allow activity owners to create tasks for their Activities
+     */
+    function createTask(
+        uint256 _activityID,
+        address _assignee,
+        string memory _title,
+        string memory _description,
+        uint _rewardInD,
+        uint _dueInDays,
+        uint _creditScoreReward
+    )
+        public
+        payable
+        doesActivityExist(_activityID)
+        onlyActivityOwners(_activityID)
+    {
+        require(
+            UserRegistration[_assignee],
+            "Assignee must be a registered user"
+        );
+        require(
+            _creditScoreReward > 0,
+            "Reward amount must be greater than zero"
+        );
+        Activity memory activity = Activities[_activityID];
+        if (activity.level > 2) {
+            require(msg.value > 0, "Reward money must be greater than zero");
+        }
+        if (activity.status == ActivityStatus.OPEN) {
+            activity.status = ActivityStatus.IN_PROGRESS;
+        }
+        Task[] storage task = Tasks[_activityID];
+        uint dueDate = block.timestamp + (_dueInDays * 1 days);
+        task.push(
+            Task(
+                msg.sender,
+                _assignee,
+                _title,
+                _description,
+                _rewardInD,
+                dueDate,
+                _creditScoreReward,
+                false,
+                block.timestamp,
+                msg.value
+            )
+        );
+        emit TaskCreated(
+            msg.sender,
+            _assignee,
+            _description,
+            _rewardInD,
+            dueDate,
+            _creditScoreReward,
+            block.timestamp
+        );
+    }
+
+    /**
+     * @notice - `completeTask` is the function called when the owner assures that the assigned task is completed.
+     * @dev - `onlyActivityOwners`, `doesActivityExist`, Events emitted - `TaskCompleted`
+     * @param _activityID -
+     * @param _taskID -
+     */
+    function completeTask(
+        uint256 _activityID,
+        uint256 _taskID
+    ) public onlyActivityOwners(_activityID) {
+        Task[] storage task = Tasks[_activityID];
+        Task storage taskToComplete = task[_taskID + 1];
+        require(taskToComplete.completed == false, "Task already completed");
+        if (block.timestamp > taskToComplete.dueDate) {
+            checkTask(taskToComplete);
+        }
+        uint256 taxAmount = retrieveTaxAmountForTask(
+            taskToComplete.rewardValue
+        );
+        uint256 amountToPay = taskToComplete.rewardValue - taxAmount;
+        (bool taxPaid, ) = payable(i_owner).call{value: taxAmount}("");
+        (bool sent, ) = payable(taskToComplete.assignee).call{
+            value: amountToPay
+        }("");
+        taskToComplete.completed = true;
+        require(sent && taxPaid, "Failed to send ETH");
+        emit TaskCompleted(
+            msg.sender,
+            taskToComplete.assignee,
+            _taskID,
+            _activityID,
+            block.timestamp,
+            true,
+            taskToComplete.rewardValue
+        );
+    }
+
+    function checkTask(Task storage _task) internal {
+        uint256 overdueDays = (block.timestamp - _task.dueDate) / 86400;
+        uint256 amountToDeduct = (overdueDays * _task.rewardValue) / 30;
+        uint256 creditScoreToDeduct = (overdueDays * _task.creditScoreReward) /
+            30;
+        _task.rewardValue -= amountToDeduct;
+        _task.creditScoreReward -= creditScoreToDeduct;
+    }
+
+    // Donations
+    /**
+     * @notice Function to cut taxes off the donation amount
+     *
+     */
+    function retrieveDonatedAmount(
+        uint256 _amount
+    ) internal pure returns (uint256) {
+        uint256 amount;
+        require(_amount > 0, "Invalid Amount");
+        amount = _amount - ((_amount * 25) / 100);
+        return amount;
+    }
+
+    /**
+     * @dev Modifiers - `isRegisteredUser`, `doesActivityExist`. Events emitted - `DonationMade`
+     * @notice Function to allow users to donate to an Activity
+     */
+
+    function donateToActivity(
+        uint256 _activityID,
+        uint256 _userPublicID
+    ) public payable isRegisteredUser doesActivityExist(_activityID) {
+        require(msg.value > 0, "Donation amount must be greater than 0");
+        Activity storage activity = Activities[_activityID];
+        uint256 actualAmount = retrieveDonatedAmount(msg.value);
+        uint256 taxAmount = msg.value - actualAmount;
+        activity.donationReceived += msg.value;
+        activity.donationBalance += actualAmount;
+        Funder[] storage funder = Funders[_activityID];
+        funder.push(Funder(msg.sender, _userPublicID, msg.value));
+        (bool sent, ) = payable(i_owner).call{value: taxAmount}("");
+        UserIdToCredits[msg.sender] += (getConversionRate(actualAmount) * 10);
+        require(sent, "Failed to send ETH");
+        emit DonationMade(
+            msg.sender,
+            _activityID,
+            _userPublicID,
+            msg.value,
+            block.timestamp,
+            activity.donationReceived
+        );
+    }
+
+    /**
+     * @dev Modifiers - `doesActivityExist`, `onlyActivityOwners`. Events emitted - `MoneyWithdrawn`
+     * @notice Function to allow Activity owners to withdraw all the money from their Activity
+     */
+
+    function withdrawAllMoney(
+        uint256 _activityID
+    )
+        public
+        payable
+        doesActivityExist(_activityID)
+        onlyActivityOwners(_activityID)
+    {
+        Activity storage activity = Activities[_activityID];
+        require(activity.donationBalance > 0, "Insufficient funds");
+        (bool sent, ) = payable(msg.sender).call{
+            value: activity.donationBalance
+        }("Money Withdrawn");
+        activity.donationBalance -= activity.donationBalance;
+        require(sent, "Failed to send ETH");
+    }
+
+    // /**
+    //  * @dev Modifiers - `doesActivityExist`, `onlyActivityOwners`. Events emitted - `MoneyWithdrawn`
+    //  * @notice Function to allow Activity owners to withdraw selective amount of money from their Activity
+    //  */
+
+    // function withdrawSelectiveMoney(
+    //     uint256 _activityID,
+    //     uint256 _amount
+    // ) public doesActivityExist(_activityID) onlyActivityOwners(_activityID) {
+    //     Activity storage activity = Activities[_activityID];
+    //     require(activity.donationBalance >= _amount, "Insufficient funds");
+    //     (bool sent, ) = payable(msg.sender).call{value: _amount}("");
+    //     activity.donationBalance -= _amount;
+    //     require(sent, "Failed to send ETH");
+    // }
+
+    // @Chainlink Keepers
     /**
      * @dev This function checks if any of the activities need an Upkeep
      * Going to be called inside `performUpkeep` to check for Activities that are expired.
@@ -269,16 +590,13 @@ contract ActivityContract {
         bool activitiesAdded = false;
         bool hasBalance = address(this).balance > 0;
         Activity memory activity;
-        if (arrayForLength.length > 0) {
-            for (uint256 i = 1; i < arrayForLength.length + 1; i++) {
-                activity = Activities[arrayForLength[i]];
+        if (s_activityCounter > 0) {
+            for (uint256 i = 1; i < s_activityCounter + 1; i++) {
+                activity = Activities[i];
                 if (activity.status == ActivityStatus.OPEN) {
-                    if (
-                        !((block.timestamp - activity.dateOfCreation) >
-                            (activity.waitingPeriodInMonths * 30 * 1 days))
-                    ) {
-                        if (!(activity.members.length > 1)) {
-                            activitiesForUpkeep.push(arrayForLength[i]);
+                    if ((block.timestamp >= activity._waitUntil)) {
+                        if ((activity.members.length <= 1)) {
+                            activitiesForUpkeep.push(i);
                             activitiesAdded = true;
                         }
                     }
@@ -300,85 +618,83 @@ contract ActivityContract {
         require(upkeepNeeded, "Upkeep not needed");
         Activity storage activity;
         for (uint i = 0; i < activitiesForUpkeep.length; i++) {
-            string memory id = activitiesForUpkeep[i];
+            uint256 id = activitiesForUpkeep[i];
             activity = Activities[id];
             activity.status = ActivityStatus.CLOSED;
         }
         delete activitiesForUpkeep;
         s_lastUpdated = block.timestamp;
-        s_counter++;
+        s_upkeepCounter++;
     }
 
-    // Miscellaneous
     function getPrice() internal view returns (uint256) {
         (, int256 answer, , , ) = s_priceFeed.latestRoundData();
         return uint256(answer * 10000000000);
     }
 
-    function getConversionRate(uint256 ethAmount)
-        internal
-        view
-        returns (uint256)
-    {
+    function getConversionRate(
+        uint256 ethAmount
+    ) internal view returns (uint256) {
         uint256 ethPrice = getPrice();
         uint256 ethAmountInUsd = (ethPrice * ethAmount);
         return ethAmountInUsd / 1e36;
     }
 
-    function getActivity(string memory activityID)
-        public
-        view
-        returns (Activity memory)
-    {
-        Activity memory returnActivity = Activities[activityID];
-        return (returnActivity);
+    function getActivityCount() public view returns (uint256) {
+        return s_activityCounter;
     }
 
-    function getJoinPrice(string memory activityID)
-        public
-        view
-        returns (uint256)
-    {
-        return Activities[activityID].joinPrice;
+    function getActivity(
+        uint256 activityID
+    ) public view returns (Activity memory) {
+        Activity memory returnActivity = Activities[activityID];
+        return (returnActivity);
     }
 
     function getOwner() public view onlyOwner returns (address) {
         return (i_owner);
     }
 
-    function getMembersOfActivity(string memory _activityID)
-        public
-        view
-        returns (address payable[] memory)
-    {
-        address payable[] memory returnMembers;
-        Activity memory activity = Activities[_activityID];
-        returnMembers = activity.members;
-        return (returnMembers);
-    }
-
-    function getMemberDetails(address _memberAddress)
-        public
-        view
-        returns (Member memory)
-    {
+    function getMemberDetails(
+        address _memberAddress
+    ) public view returns (Member memory) {
         Member memory member = Members[_memberAddress];
         return (member);
     }
 
-    function getTermsForActivity(string memory _activityID)
-        public
-        view
-        returns (Term[] memory)
-    {
+    function getTermsForActivity(
+        uint256 _activityID
+    ) public view returns (Term[] memory) {
         return Terms[_activityID];
     }
 
-    function getCounterValue() public view returns (uint256) {
-        return (s_counter);
+    function getUpkeepCounterValue() public view returns (uint256) {
+        return (s_upkeepCounter);
     }
 
     function getPriceFeed() public view returns (AggregatorV3Interface) {
         return s_priceFeed;
+    }
+
+    function getActivityFunders(
+        uint256 _activityID
+    ) public view returns (Funder[] memory) {
+        return Funders[_activityID];
+    }
+
+    function getUserCredits(
+        address _userAddress
+    ) public view returns (uint256, bool) {
+        return (UserIdToCredits[_userAddress], UserRegistration[_userAddress]);
+    }
+
+    function getActivityTasks(
+        uint256 _activityID
+    ) public view returns (Task[] memory) {
+        return Tasks[_activityID];
+    }
+
+    function getUserCount() public view returns (uint256) {
+        return s_userCounter;
     }
 }
