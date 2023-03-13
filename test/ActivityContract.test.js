@@ -8,6 +8,8 @@ const JoinActivityTestCases = require("../static_files/TestCases/JoinActivity.js
 const AddTermForActivityTestCases = require("../static_files/TestCases/AddTermForActivity.js");
 const DonateToActivityTestCases = require("../static_files/TestCases/DonateToActivity.js");
 const WithdrawAllMoneyTestCases = require("../static_files/TestCases/WithDrawAllMoney");
+const CreateTaskTestCases = require("../static_files/TestCases/CreateTask.js");
+const CompleteTaskTestCases = require("../static_files/TestCases/CompleteTask.js");
 
 describe("ActivityContract", async () => {
   let ActivityContract;
@@ -61,6 +63,24 @@ describe("ActivityContract", async () => {
     return response;
   };
 
+  const CreateTask = async (addr1, addr2) => {
+    const weiAmount = await getWeiAmount(CreateTaskTestCases[0]._rewardInD);
+    const response = await ActivityContract.connect(
+      addr1
+    ).createTask(
+      CreateTaskTestCases[0]._activityID,
+      addr2.address,
+      CreateTaskTestCases[0]._title,
+      CreateTaskTestCases[0]._description,
+      CreateTaskTestCases[0]._rewardInD,
+      CreateTaskTestCases[0]._dueInDays,
+      CreateTaskTestCases[0]._creditScoreReward,
+      { value: weiAmount }
+    );
+
+    return response;
+  };
+
   const getWeiAmount = async (usdValue) => {
     ethPriceValue = await ethPrice("usd");
     const ethValue = convertUsdToETH(usdValue, ethPriceValue);
@@ -90,7 +110,7 @@ describe("ActivityContract", async () => {
       addr2 = _addr2;
       addr3 = _addr3;
     });
-    it("Should register a user successfully \n", async () => {
+    it("Should register a user successfully", async () => {
       const response = await RegisterUser(addr2);
       assert.isTrue((await ActivityContract.getUserCredits(addr2.address))[1]);
     });
@@ -235,16 +255,6 @@ describe("ActivityContract", async () => {
     });
 
     it("`joinActivity` allows user to join Activity successfully \n", async () => {
-      // const { joinPrice } = await ActivityContract.getActivity(activityID);
-      // const weiAmount = await getWeiAmount(joinPrice);
-      // await ActivityContract.connect(addr3).joinActivity(
-      //   activityID,
-      //   JoinActivityTestCases[0].username,
-      //   JoinActivityTestCases[0].tenureInMonths,
-      //   {
-      //     value: weiAmount,
-      //   }
-      // );
       await JoinActivity(addr3, activityID);
       assert.isTrue(
         (await ActivityContract.getActivity(activityID)).members.includes(
@@ -408,114 +418,132 @@ describe("ActivityContract", async () => {
       assert.equal(activity.donationBalance, 0);
     });
   });
-  // describe("`donateToActivity` Test Cases", async () => {
-  //   let owner, addr2, addr3, addr4;
-  //   beforeEach(async () => {
-  //     const [_owner, _addr2, _addr3, _addr4] = await ethers.getSigners();
-  //     owner = _owner;
-  //     addr2 = _addr2;
-  //     addr3 = _addr3;
-  //     addr4 = _addr4;
 
-  //     await ActivityContract.connect(addr2).createActivity(
-  //       "abc",
-  //       "Slowqueso",
-  //       "Minerva",
-  //       "Minerva is a cryptocurrency application",
-  //       5,
-  //       3,
-  //       1,
-  //       3,
-  //       200223,
-  //       1
-  //     );
-  //   });
+  describe("`createTask` Test Cases", async () => {
+    let owner, addr2, addr3, addr4;
+    beforeEach(async () => {
+      const [_owner, _addr2, _addr3, _addr4] = await ethers.getSigners();
+      owner = _owner;
+      addr2 = _addr2;
+      addr3 = _addr3;
+      addr4 = _addr4;
+      await RegisterUser(addr2);
+      await RegisterUser(addr3);
+      const activityID = await CreateActivity(addr2);
+      await JoinActivity(addr3, activityID);
+    });
 
-  //   it("`donateToActivity` donation money is stored in the smart contract", async () => {
-  //     ethPriceValue = await ethPrice("usd");
-  //     const ethValue = convertUsdToETH(10, ethPriceValue);
-  //     console.log("ETH Value:" + ethValue);
-  //     const weiAmount = ethers.utils.parseEther(ethValue.toString());
-  //     const response = await ActivityContract.connect(addr3).donateToActivity(
-  //       "abc",
-  //       10,
-  //       "Lynda",
-  //       {
-  //         value: weiAmount,
-  //       }
-  //     );
-  //     const totalDonation = await ActivityContract.getActivityTotalDonationReceived(
-  //       "abc"
-  //     );
-  //     console.log("totalDonation Amount: " + totalDonation);
-  //     assert(totalDonation == 10);
-  //   });
+    it("`createTask` reverts with 'Activity Does not exist'", async () => {
+      const weiAmount = await getWeiAmount(CreateTaskTestCases[2]._rewardInD);
+      await expect(
+        ActivityContract.connect(addr2).createTask(
+          CreateTaskTestCases[2]._activityID,
+          addr3.address,
+          CreateTaskTestCases[2]._title,
+          CreateTaskTestCases[2]._description,
+          CreateTaskTestCases[2]._rewardInD,
+          CreateTaskTestCases[2]._dueInDays,
+          CreateTaskTestCases[2]._creditScoreReward,
+          { value: weiAmount }
+        )
+      ).to.be.revertedWith(CreateTaskTestCases[2].expectedError);
+    });
+    it("`createTask` reverts with 'You are not allowed to perform this task!'", async () => {
+      const weiAmount = await getWeiAmount(CreateTaskTestCases[3]._rewardInD);
+      await expect(
+        ActivityContract.connect(addr4).createTask(
+          CreateTaskTestCases[3]._activityID,
+          addr3.address,
+          CreateTaskTestCases[3]._title,
+          CreateTaskTestCases[3]._description,
+          CreateTaskTestCases[3]._rewardInD,
+          CreateTaskTestCases[3]._dueInDays,
+          CreateTaskTestCases[3]._creditScoreReward,
+          { value: weiAmount }
+        )
+      ).to.be.revertedWith(CreateTaskTestCases[3].expectedError);
+    });
 
-  //   it("`donateToActivity` reverts with 'Activity Does not exist'", async () => {
-  //     ethPriceValue = await ethPrice("usd");
-  //     const ethValue = convertUsdToETH(10, ethPriceValue);
-  //     const weiAmount = ethers.utils.parseEther(ethValue.toString());
-  //     await expect(
-  //       ActivityContract.connect(addr3).donateToActivity("abcd", 10, "Lynda", {
-  //         value: weiAmount,
-  //       })
-  //     ).to.be.revertedWith("Activity Does not exist");
-  //   });
-  // });
+    it("`createTask` reverts with 'Assignee must be a member of the Activity'", async () => {
+      const weiAmount = await getWeiAmount(CreateTaskTestCases[3]._rewardInD);
+      await expect(
+        ActivityContract.connect(addr2).createTask(
+          CreateTaskTestCases[4]._activityID,
+          addr4.address,
+          CreateTaskTestCases[4]._title,
+          CreateTaskTestCases[4]._description,
+          CreateTaskTestCases[4]._rewardInD,
+          CreateTaskTestCases[4]._dueInDays,
+          CreateTaskTestCases[4]._creditScoreReward,
+          { value: weiAmount }
+        )
+      ).to.be.revertedWith(CreateTaskTestCases[4].expectedError);
+    });
 
-  // describe("\n `withdrawAllMoney` Test Cases", async () => {
-  //   let owner, addr2, addr3, addr4;
-  //   beforeEach(async () => {
-  //     const [_owner, _addr2, _addr3, _addr4] = await ethers.getSigners();
-  //     owner = _owner;
-  //     addr2 = _addr2;
-  //     addr3 = _addr3;
-  //     addr4 = _addr4;
+    it("`createTask` creates a Task successfully\n", async () => {
+      await CreateTask(addr2, addr3);
+      const task = await ActivityContract.getActivityTasks(
+        CreateTaskTestCases[0]._activityID
+      );
+      assert.equal(task[0].title, CreateTaskTestCases[0]._title);
+    });
+  });
 
-  //     await ActivityContract.connect(addr2).createActivity(
-  //       "abc",
-  //       "Slowqueso",
-  //       "Minerva",
-  //       "Minerva is a cryptocurrency application",
-  //       5,
-  //       3,
-  //       1,
-  //       3,
-  //       200223,
-  //       1
-  //     );
-  //     ethPriceValue = await ethPrice("usd");
-  //     const ethValue = convertUsdToETH(10, ethPriceValue);
-  //     const weiAmount = ethers.utils.parseEther(ethValue.toString());
-  //     await ActivityContract.connect(addr3).donateToActivity(
-  //       "abc",
-  //       10,
-  //       "Lynda",
-  //       {
-  //         value: weiAmount,
-  //       }
-  //     );
-  //   });
-  //   it("`withdrawAllMoney` reverts with 'Activity Does not exist'", async () => {
-  //     await expect(
-  //       ActivityContract.connect(addr2).withdrawAllMoney("abcd")
-  //     ).to.be.revertedWith("Activity Does not exist");
-  //   });
+  describe("`completeTask` Test Cases", async () => {
+    let owner, addr2, addr3, addr4;
+    beforeEach(async () => {
+      const [_owner, _addr2, _addr3, _addr4] = await ethers.getSigners();
+      owner = _owner;
+      addr2 = _addr2;
+      addr3 = _addr3;
+      addr4 = _addr4;
+      await RegisterUser(addr2);
+      await RegisterUser(addr3);
+      const activityID = await CreateActivity(addr2);
+      await JoinActivity(addr3, activityID);
+      await CreateTask(addr2, addr3);
+    });
 
-  //   it("`withdrawAllMoney` reverts with 'You are not allowed to perform this task!'", async () => {
-  //     await expect(
-  //       ActivityContract.connect(addr3).withdrawAllMoney("abc")
-  //     ).to.be.revertedWith("You are not allowed to perform this task!");
-  //   });
+    it("`completeTask` reverts with 'Activity Does not exist'", async () => {
+      await expect(
+        ActivityContract.connect(addr3).completeTask(
+          CompleteTaskTestCases[1]._activityID,
+          CompleteTaskTestCases[1]._taskID
+        )
+      ).to.be.revertedWith(CompleteTaskTestCases[1].expectedError);
+    });
 
-  //   it("`withdrawAllMoney` withdraws all the money from the smart contract", async () => {
-  //     const response = await ActivityContract.connect(addr2).withdrawAllMoney(
-  //       "abc"
-  //     );
-  //     const balance = await ActivityContract.getActivityDonationBalance("abc");
-  //     console.log("Balance:" + balance);
-  //     console.log(addr2);
-  //     assert(balance == 0);
-  //   });
-  // });
+    it("`completeTask` reverts with 'You are not allowed to perform this task!'", async () => {
+      await expect(
+        ActivityContract.connect(addr4).completeTask(
+          CompleteTaskTestCases[2]._activityID,
+          CompleteTaskTestCases[2]._taskID
+        )
+      ).to.be.revertedWith(CompleteTaskTestCases[2].expectedError);
+    });
+
+    it("`completeTask` reverts with 'Task already completed'", async () => {
+      await ActivityContract.connect(addr2).completeTask(
+        CompleteTaskTestCases[3]._activityID,
+        CompleteTaskTestCases[3]._taskID
+      );
+      await expect(
+        ActivityContract.connect(addr2).completeTask(
+          CompleteTaskTestCases[3]._activityID,
+          CompleteTaskTestCases[3]._taskID
+        )
+      ).to.be.revertedWith(CompleteTaskTestCases[3].expectedError);
+    });
+
+    it("`completeTask` completes the Task successfully\n", async () => {
+      await ActivityContract.connect(addr2).completeTask(
+        CompleteTaskTestCases[0]._activityID,
+        CompleteTaskTestCases[0]._taskID
+      );
+      const task = await ActivityContract.getActivityTasks(
+        CompleteTaskTestCases[0]._activityID
+      );
+      assert.equal(task[0].completed, true);
+    });
+  });
 });

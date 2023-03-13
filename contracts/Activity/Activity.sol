@@ -412,8 +412,8 @@ contract ActivityContract {
         onlyActivityOwners(_activityID)
     {
         require(
-            UserRegistration[_assignee],
-            "Assignee must be a registered user"
+            Members[_assignee].forActivity == _activityID,
+            "Assignee must be a member of the Activity"
         );
         require(
             _creditScoreReward > 0,
@@ -462,9 +462,9 @@ contract ActivityContract {
     function completeTask(
         uint256 _activityID,
         uint256 _taskID
-    ) public onlyActivityOwners(_activityID) {
+    ) public doesActivityExist(_activityID) onlyActivityOwners(_activityID) {
         Task[] storage task = Tasks[_activityID];
-        Task storage taskToComplete = task[_taskID + 1];
+        Task storage taskToComplete = task[_taskID - 1];
         require(taskToComplete.completed == false, "Task already completed");
         if (block.timestamp > taskToComplete.dueDate) {
             checkTask(taskToComplete);

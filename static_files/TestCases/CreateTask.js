@@ -1,8 +1,9 @@
-export default CreateTaskTestCases = [
+const CreateTaskTestCases = [
   // Valid input cases
   {
     _activityID: 1,
     _assignee: "0x123...",
+    _title: "Task title",
     _description: "Task description",
     _rewardInD: 50,
     _dueInDays: 3,
@@ -23,29 +24,32 @@ export default CreateTaskTestCases = [
   {
     _activityID: 0,
     _assignee: "0x789...",
+    _title: "Task title",
     _description: "Task description",
     _rewardInD: 50,
     _dueInDays: 3,
     _creditScoreReward: 10,
-    expectedError: "Activity ID must be greater than zero",
+    expectedError: "Activity Does not exist",
   },
   {
-    _activityID: 3,
+    _activityID: 1,
     _assignee: "0xabc...",
+    _title: "Task title",
     _description: "",
     _rewardInD: 50,
     _dueInDays: 3,
     _creditScoreReward: 10,
-    expectedError: "Description cannot be empty",
+    expectedError: "You are not allowed to perform this task!",
   },
   {
-    _activityID: 4,
+    _activityID: 1,
     _assignee: "0xdef...",
+    _title: "Task title",
     _description: "Task description",
-    _rewardInD: 0,
+    _rewardInD: 50,
     _dueInDays: 3,
     _creditScoreReward: 10,
-    expectedError: "Reward amount must be greater than zero",
+    expectedError: "Assignee must be a member of the Activity",
   },
   {
     _activityID: 5,
@@ -76,3 +80,5 @@ export default CreateTaskTestCases = [
     expectedError: "Assignee must be a registered user",
   },
 ];
+
+module.exports = CreateTaskTestCases;
