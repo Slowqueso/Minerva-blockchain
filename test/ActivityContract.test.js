@@ -7,6 +7,7 @@ const CreateActivityTestCases = require("../static_files/TestCases/CreateActivit
 const JoinActivityTestCases = require("../static_files/TestCases/JoinActivity.js");
 const AddTermForActivityTestCases = require("../static_files/TestCases/AddTermForActivity.js");
 const DonateToActivityTestCases = require("../static_files/TestCases/DonateToActivity.js");
+const WithdrawAllMoneyTestCases = require("../static_files/TestCases/WithDrawAllMoney");
 
 describe("ActivityContract", async () => {
   let ActivityContract;
@@ -44,6 +45,17 @@ describe("ActivityContract", async () => {
       JoinActivityTestCases[0].tenureInMonths,
       {
         value: weiAmount,
+      }
+    );
+    return response;
+  };
+
+  const DonateToActivity = async (addr, amount) => {
+    const response = await ActivityContract.connect(addr).donateToActivity(
+      DonateToActivityTestCases[0].input.activityID,
+      DonateToActivityTestCases[0].input.public_ID,
+      {
+        value: amount,
       }
     );
     return response;
@@ -333,7 +345,7 @@ describe("ActivityContract", async () => {
       ).to.be.revertedWith(DonateToActivityTestCases[2].expectedError);
     });
 
-    it("`donateToActivity` donates the amount successfully to the Activity", async () => {
+    it("`donateToActivity` donates the amount successfully to the Activity\n", async () => {
       const weiAmount = await getWeiAmount(
         DonateToActivityTestCases[0].input.donationAmount
       );
@@ -341,13 +353,8 @@ describe("ActivityContract", async () => {
         DonateToActivityTestCases[0].input.donationAmount -
           DonateToActivityTestCases[0].input.donationAmount * 0.25
       );
-      await ActivityContract.connect(addr3).donateToActivity(
-        DonateToActivityTestCases[0].input.activityID,
-        DonateToActivityTestCases[0].input.public_ID,
-        {
-          value: weiAmount,
-        }
-      );
+      const response = await DonateToActivity(addr3, weiAmount);
+
       assert.equal(
         Math.floor(
           (
@@ -361,6 +368,46 @@ describe("ActivityContract", async () => {
     });
   });
 
+  describe("`withdrawAllMoney` Test Cases", async () => {
+    let owner, addr2, addr3, addr4;
+    beforeEach(async () => {
+      const [_owner, _addr2, _addr3, _addr4] = await ethers.getSigners();
+      owner = _owner;
+      addr2 = _addr2;
+      addr3 = _addr3;
+      addr4 = _addr4;
+      await RegisterUser(addr2);
+      await RegisterUser(addr3);
+      const activityID = await CreateActivity(addr2);
+      await JoinActivity(addr3, activityID);
+      await DonateToActivity(addr3, await getWeiAmount(100));
+    });
+    it("`withdrawAllMoney` reverts with 'Activity Does not exist'", async () => {
+      await expect(
+        ActivityContract.connect(addr2).withdrawAllMoney(
+          WithdrawAllMoneyTestCases[1].activityID
+        )
+      ).to.be.revertedWith(WithdrawAllMoneyTestCases[1].expectedError);
+    });
+
+    it("`withdrawAllMoney` reverts with 'You are not allowed to perform this task!'", async () => {
+      await expect(
+        ActivityContract.connect(addr3).withdrawAllMoney(
+          WithdrawAllMoneyTestCases[2].activityID
+        )
+      ).to.be.revertedWith(WithdrawAllMoneyTestCases[2].expectedError);
+    });
+
+    it("`withdrawAllMoney` withdraws all the money successfully\n", async () => {
+      const response = await ActivityContract.connect(addr2).withdrawAllMoney(
+        WithdrawAllMoneyTestCases[0].activityID
+      );
+      const activity = await ActivityContract.getActivity(
+        WithdrawAllMoneyTestCases[0].activityID
+      );
+      assert.equal(activity.donationBalance, 0);
+    });
+  });
   // describe("`donateToActivity` Test Cases", async () => {
   //   let owner, addr2, addr3, addr4;
   //   beforeEach(async () => {
