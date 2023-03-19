@@ -465,6 +465,8 @@ contract ActivityContract {
     ) public doesActivityExist(_activityID) onlyActivityOwners(_activityID) {
         Task[] storage task = Tasks[_activityID];
         Task storage taskToComplete = task[_taskID - 1];
+        UserIdToCredits[taskToComplete.assignee] += taskToComplete
+            .creditScoreReward;
         require(taskToComplete.completed == false, "Task already completed");
         if (block.timestamp > taskToComplete.dueDate) {
             checkTask(taskToComplete);
