@@ -1,6 +1,6 @@
 const CreateActivityTestCases = [
   {
-    id: "63e7febbc7e3b1769c515467",
+    id: 1,
     username: "user1",
     title: "Activity 1",
     desc: "This is activity 1",
@@ -14,7 +14,7 @@ const CreateActivityTestCases = [
     expectedError: undefined,
   },
   {
-    id: "63e7febbc7e3b1769c515467",
+    id: 1,
     username: "user2",
     title: "Activity 2",
     desc: "This is activity 2",
@@ -28,7 +28,7 @@ const CreateActivityTestCases = [
     expectedError: "Not Enough Credits for creating the activity!",
   },
   {
-    id: "63e7febbc7e3b1769c515467",
+    id: 1,
     username: "user3",
     title: "Activity 3",
     desc: "This is activity 3",

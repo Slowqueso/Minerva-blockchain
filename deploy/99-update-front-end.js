@@ -14,32 +14,30 @@ module.exports = async function() {
 };
 
 async function updateAbi() {
-  const ActivityContract = await ethers.getContract("ActivityContract");
+  const Minerva = await ethers.getContract("Minerva");
   fs.writeFileSync(
     FRONT_END_ABI_FILE,
-    ActivityContract.interface.format(ethers.utils.FormatTypes.json)
+    Minerva.interface.format(ethers.utils.FormatTypes.json)
   );
 }
 
 const updateContractAddresses = async () => {
-  const ActivityContract = await ethers.getContract("ActivityContract");
+  const Minerva = await ethers.getContract("Minerva");
   const contractAddresses = JSON.parse(
     fs.readFileSync(FRONT_END_ADDRESSES_FILE, "utf-8")
   );
   if (network.config.chainId.toString() in contractAddresses) {
     if (
       !contractAddresses[network.config.chainId.toString()].includes(
-        ActivityContract.address
+        Minerva.address
       )
     ) {
       contractAddresses[network.config.chainId.toString()].push(
-        ActivityContract.address
+        Minerva.address
       );
     }
   } else {
-    contractAddresses[network.config.chainId.toString()] = [
-      ActivityContract.address,
-    ];
+    contractAddresses[network.config.chainId.toString()] = [Minerva.address];
   }
   fs.writeFileSync(FRONT_END_ADDRESSES_FILE, JSON.stringify(contractAddresses));
 };

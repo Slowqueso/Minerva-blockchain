@@ -10,27 +10,32 @@ module.exports = async function({ getNamedAccounts, deployments }) {
   const { deployer } = await getNamedAccounts();
   const chainId = network.config.chainId;
   let ethPriceFeedAddress;
+  let UserRegistrationAddress;
   if (developmentChains.includes(network.name)) {
     const ethUSDAggregator = await deployments.get("MockV3Aggregator");
+    const UserRegistrationContract = await deployments.get(
+      "UserRegistrationContract"
+    );
+    UserRegistrationAddress = UserRegistrationContract.address;
     ethPriceFeedAddress = ethUSDAggregator.address;
   } else {
     ethPriceFeedAddress = networkConfig[chainId].priceFeedAddress;
   }
 
   log("-----------------------------------------");
-  const activityContract = await deploy("ActivityContract", {
+  const MinervaActivityContract = await deploy("MinervaActivityContract", {
     from: deployer,
-    args: [ethPriceFeedAddress],
+    args: [UserRegistrationAddress],
     log: true,
     waitConfirmations: network.config.blockConfirmations || 1,
   });
-  log(`ActivityContract deployed at: ${activityContract.address}`);
+  log(`Activity Contract deployed at: ${MinervaActivityContract.address}`);
 
   if (
     !developmentChains.includes(network.name) &&
     process.env.ETHERSCAN_API_KEY
   ) {
-    await verify(activityContract.address, [ethPriceFeedAddress]);
+    await verify(MinervaActivityContract.address);
   }
 };
 module.exports.tags = ["all", "activity"];
