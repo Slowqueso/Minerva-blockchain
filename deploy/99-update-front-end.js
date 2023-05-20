@@ -7,7 +7,6 @@ const FRONT_END_ABI_FILE = "../minerva-frontend/constants/abi.json";
 
 module.exports = async function() {
   if (process.env.UPDATE_FRONT_END) {
-    console.log("Updating front end...");
     updateContractAddresses();
     updateAbi();
   }

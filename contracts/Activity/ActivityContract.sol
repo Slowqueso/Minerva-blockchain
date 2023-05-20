@@ -38,6 +38,11 @@ interface ActivityInterface {
         bool isEngaged;
     }
 
+    struct Terms {
+        string[] title;
+        string[] desc;
+    }
+
     function createActivity(
         uint256 _id,
         string calldata _username,
@@ -80,13 +85,17 @@ interface ActivityInterface {
         uint256 activityID
     ) external view returns (Activity memory);
 
-    function getBalance(
+    function getDonationBalance(
         uint256 _activityID
     ) external view returns (uint256 balance);
 
     function getMemberDetails(
         address _memberAddress
     ) external view returns (Member memory);
+
+    function getTermsForActivity(
+        uint256 _activityID
+    ) external view returns (Terms memory);
 }
 
 /**
@@ -165,10 +174,19 @@ contract MinervaActivityContract {
         bool isEngaged;
     }
 
+    /**
+     * @notice struct for each Terms and Conditions for Activities
+     */
+    struct Terms {
+        string[] title;
+        string[] desc;
+    }
+
     // ------------ Arrays and Mappings ------------
     mapping(uint256 => Activity) Activities;
     mapping(uint256 => address[]) ActivityIdToWhiteListedUsers;
     mapping(address => Member) Members;
+    mapping(uint256 => Terms) ActivityIdToTerms;
     uint256[] activitiesForUpkeep;
 
     /**
@@ -334,6 +352,26 @@ contract MinervaActivityContract {
         delete memberAddress;
     }
 
+    // Add Terms and Conditions
+    /**
+     * @dev Modifiers - `onlyActivityOwners`, `doesActivityExist`, Events emitted - `TermAdded`
+     * @notice Method to allow activity owners to add terms and conditions to their Activities
+     */
+    function addTermForActivity(
+        uint256 _activityID,
+        string[] memory _title,
+        string[] memory _desc,
+        address userAddress
+    ) external onlyPermitted isRegisteredUser(userAddress) {
+        if (!doesActivityExist(_activityID)) revert Activity_NotFound();
+        require(
+            isActivityOwner(_activityID, userAddress),
+            "User is not the owner of the activity"
+        );
+        Terms memory terms = Terms(_title, _desc);
+        ActivityIdToTerms[_activityID] = terms;
+    }
+
     // Add to whitelist
     /**
      * @notice Function for adding a user to the whitelist of an Activity
@@ -344,7 +382,10 @@ contract MinervaActivityContract {
         address _memberAddress,
         address userAddress
     ) external onlyPermitted {
-        require(isActivityOwner(_activityID, userAddress));
+        require(
+            isActivityOwner(_activityID, userAddress),
+            "User is not the owner of the activity"
+        );
         ActivityIdToWhiteListedUsers[_activityID].push(_memberAddress);
     }
 
@@ -496,6 +537,12 @@ contract MinervaActivityContract {
     ) external view returns (Activity memory) {
         Activity memory returnActivity = Activities[activityID];
         return (returnActivity);
+    }
+
+    function getTermsForActivity(
+        uint256 _activityID
+    ) external view returns (Terms memory) {
+        return ActivityIdToTerms[_activityID];
     }
 
     /**

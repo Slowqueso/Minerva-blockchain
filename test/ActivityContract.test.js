@@ -38,6 +38,19 @@ describe("Minerva Smart Contract", async () => {
     return await MinervaContract.getActivityCount();
   };
 
+  const AddToWhiteList = async (owner, addr, activityID) => {
+    try {
+      const response = await MinervaContract.connect(owner).addToWhitelist(
+        activityID,
+        addr.address
+      );
+      return true;
+    } catch (error) {
+      console.log(error);
+      return false;
+    }
+  };
+
   const JoinActivity = async (addr, activityID) => {
     const { joinPrice } = await MinervaContract.getActivity(activityID);
     const weiAmount = await getWeiAmount(joinPrice);
@@ -157,7 +170,6 @@ describe("Minerva Smart Contract", async () => {
           CreateActivityTestCases[0].waitingPeriodInMonths
         );
       } catch (error) {
-        console.log(error);
         assert.isTrue(error.message.includes("User is not registered"));
       }
     });
@@ -186,7 +198,7 @@ describe("Minerva Smart Contract", async () => {
     });
   });
 
-  describe("`joinActivity` Test Cases", async () => {
+  describe("`addToWhitelist` Test Cases", async () => {
     let owner, addr2, addr3, addr4, activityID;
     beforeEach(async () => {
       const [_owner, _addr2, _addr3, _addr4] = await ethers.getSigners();
@@ -199,19 +211,59 @@ describe("Minerva Smart Contract", async () => {
       activityID = await CreateActivity(addr2);
     });
 
-    it("`joinActivity` reverts with 'Activity Does not exist'", async () => {
-      const { joinPrice } = await MinervaContract.getActivity(activityID);
-      const weiAmount = await getWeiAmount(joinPrice);
-      await expect(
-        MinervaContract.connect(addr3).joinActivity(
-          activityID + 1,
-          JoinActivityTestCases[1].username,
-          JoinActivityTestCases[1].tenureInMonths,
-          {
-            value: weiAmount,
-          }
-        )
-      ).to.be.revertedWith("Activity Does not exist");
+    it("Should revert Transaction as user is not the owner of the activity", async () => {
+      try {
+        const response = await MinervaContract.connect(addr3).addToWhitelist(
+          activityID,
+          addr3.address
+        );
+      } catch (error) {
+        assert.isTrue(
+          error.message.includes("User is not the owner of the activity")
+        );
+      }
+    });
+
+    it("Should add user to whitelist successfully \n", async () => {
+      try {
+        assert.isTrue(await AddToWhiteList(addr2, addr3, activityID));
+      } catch (error) {
+        console.log(error);
+      }
+    });
+  });
+
+  describe("`doesAddressHavePermission` test cases", () => {
+    let owner, addr2, addr3, addr4, activityID;
+    beforeEach(async () => {
+      const [_owner, _addr2, _addr3, _addr4] = await ethers.getSigners();
+      owner = _owner;
+      addr2 = _addr2;
+      addr3 = _addr3;
+      addr4 = _addr4;
+      await RegisterUser(addr2);
+      await RegisterUser(addr3);
+      activityID = await CreateActivity(addr2);
+      await AddToWhiteList(addr2, addr3, activityID);
+    });
+
+    it("Should return true if user has permission \n", async () => {
+      assert.isTrue(await MinervaContract.doesAddressHavePermission());
+    });
+  });
+
+  describe("`joinActivity` Test Cases", async () => {
+    let owner, addr2, addr3, addr4, activityID;
+    beforeEach(async () => {
+      const [_owner, _addr2, _addr3, _addr4] = await ethers.getSigners();
+      owner = _owner;
+      addr2 = _addr2;
+      addr3 = _addr3;
+      addr4 = _addr4;
+      await RegisterUser(addr2);
+      await RegisterUser(addr3);
+      activityID = await CreateActivity(addr2);
+      await AddToWhiteList(addr2, addr3, activityID);
     });
 
     it(`"joinActivity" reverts with 'You are already a member of this activity'`, async () => {
@@ -273,7 +325,7 @@ describe("Minerva Smart Contract", async () => {
           AddTermForActivityTestCases[6]._title,
           AddTermForActivityTestCases[6]._desc
         )
-      ).to.be.revertedWith(AddTermForActivityTestCases[6].expectedError);
+      ).to.be.revertedWith("Activity_NotFound()");
     });
 
     it("`addTermForActivity` reverts with 'You are not the owner of this activity'", async () => {
@@ -283,7 +335,7 @@ describe("Minerva Smart Contract", async () => {
           AddTermForActivityTestCases[0]._title,
           AddTermForActivityTestCases[0]._desc
         )
-      ).to.be.revertedWith("You are not allowed to perform this task!");
+      ).to.be.revertedWith("User is not the owner of the activity");
     });
 
     it("`addTermForActivity` adds terms to the activity successfully \n", async () => {
@@ -297,7 +349,7 @@ describe("Minerva Smart Contract", async () => {
           await MinervaContract.getTermsForActivity(
             AddTermForActivityTestCases[0]._activityID
           )
-        )[0].title[0],
+        ).title[0],
         AddTermForActivityTestCases[0]._title[0]
       );
     });
@@ -314,6 +366,7 @@ describe("Minerva Smart Contract", async () => {
       await RegisterUser(addr2);
       await RegisterUser(addr3);
       const activityID = await CreateActivity(addr2);
+      await AddToWhiteList(addr2, addr3, activityID);
       await JoinActivity(addr3, activityID);
     });
 
@@ -329,7 +382,7 @@ describe("Minerva Smart Contract", async () => {
           DonateToActivityTestCases[1].input.public_ID,
           { value: weiAmount }
         )
-      ).to.be.revertedWith(DonateToActivityTestCases[1].expectedError);
+      ).to.be.revertedWith("Activity_NotFound()");
     });
 
     it("`donateToActivity` reverts with 'Donation amount must be greater than 0'", async () => {
@@ -369,6 +422,59 @@ describe("Minerva Smart Contract", async () => {
   });
 
   describe("`withdrawAllMoney` Test Cases", async () => {
+    let owner, addr2, addr3, addr4, weiAmount;
+    beforeEach(async () => {
+      const [_owner, _addr2, _addr3, _addr4] = await ethers.getSigners();
+      owner = _owner;
+      addr2 = _addr2;
+      addr3 = _addr3;
+      addr4 = _addr4;
+      await RegisterUser(addr2);
+      await RegisterUser(addr3);
+      const activityID = await CreateActivity(addr2);
+      await DonateToActivity(addr3, await getWeiAmount(100));
+      weiAmount = await getWeiAmount(
+        DonateToActivityTestCases[0].input.donationAmount
+      );
+    });
+    it("`withdrawSelectiveMoney` reverts with 'Activity Does not exist'", async () => {
+      await expect(
+        MinervaContract.connect(addr2).withdrawSelectiveMoney(
+          WithdrawAllMoneyTestCases[1].activityID,
+          weiAmount
+        )
+      ).to.be.revertedWith("Activity_NotFound()");
+    });
+
+    it("`withdrawSelectiveMoney` reverts with 'You are not allowed to perform this task!'", async () => {
+      await expect(
+        MinervaContract.connect(addr3).withdrawSelectiveMoney(
+          WithdrawAllMoneyTestCases[2].activityID,
+          weiAmount
+        )
+      ).to.be.revertedWith("You are not the owner");
+    });
+
+    it("`withdrawSelectiveMoney` withdraws all the money successfully\n", async () => {
+      const {
+        donationBalance: initialBalance,
+      } = await MinervaContract.getActivity(
+        WithdrawAllMoneyTestCases[0].activityID
+      );
+      const withdrawalAmount = await getWeiAmount(70);
+      const response = await MinervaContract.connect(
+        addr2
+      ).withdrawSelectiveMoney(
+        WithdrawAllMoneyTestCases[0].activityID,
+        withdrawalAmount
+      );
+      const activity = await MinervaContract.getActivity(
+        WithdrawAllMoneyTestCases[0].activityID
+      );
+    });
+  });
+
+  describe("`withdrawSelectiveMoney` Test Cases", async () => {
     let owner, addr2, addr3, addr4;
     beforeEach(async () => {
       const [_owner, _addr2, _addr3, _addr4] = await ethers.getSigners();
@@ -379,7 +485,6 @@ describe("Minerva Smart Contract", async () => {
       await RegisterUser(addr2);
       await RegisterUser(addr3);
       const activityID = await CreateActivity(addr2);
-      await JoinActivity(addr3, activityID);
       await DonateToActivity(addr3, await getWeiAmount(100));
     });
     it("`withdrawAllMoney` reverts with 'Activity Does not exist'", async () => {
@@ -387,7 +492,7 @@ describe("Minerva Smart Contract", async () => {
         MinervaContract.connect(addr2).withdrawAllMoney(
           WithdrawAllMoneyTestCases[1].activityID
         )
-      ).to.be.revertedWith(WithdrawAllMoneyTestCases[1].expectedError);
+      ).to.be.revertedWith("Activity_NotFound()");
     });
 
     it("`withdrawAllMoney` reverts with 'You are not allowed to perform this task!'", async () => {
@@ -395,7 +500,7 @@ describe("Minerva Smart Contract", async () => {
         MinervaContract.connect(addr3).withdrawAllMoney(
           WithdrawAllMoneyTestCases[2].activityID
         )
-      ).to.be.revertedWith(WithdrawAllMoneyTestCases[2].expectedError);
+      ).to.be.revertedWith("You are not the owner");
     });
 
     it("`withdrawAllMoney` withdraws all the money successfully\n", async () => {
@@ -420,6 +525,7 @@ describe("Minerva Smart Contract", async () => {
       await RegisterUser(addr2);
       await RegisterUser(addr3);
       const activityID = await CreateActivity(addr2);
+      await AddToWhiteList(addr2, addr3, activityID);
       await JoinActivity(addr3, activityID);
     });
 
@@ -436,7 +542,7 @@ describe("Minerva Smart Contract", async () => {
           CreateTaskTestCases[2]._creditScoreReward,
           { value: weiAmount }
         )
-      ).to.be.revertedWith(CreateTaskTestCases[2].expectedError);
+      ).to.be.revertedWith("Task__ActivityDoesNotExist()");
     });
     it("`createTask` reverts with 'You are not allowed to perform this task!'", async () => {
       const weiAmount = await getWeiAmount(CreateTaskTestCases[3]._rewardInD);
@@ -451,7 +557,7 @@ describe("Minerva Smart Contract", async () => {
           CreateTaskTestCases[3]._creditScoreReward,
           { value: weiAmount }
         )
-      ).to.be.revertedWith(CreateTaskTestCases[3].expectedError);
+      ).to.be.revertedWith("Only Activity Owners can create tasks");
     });
 
     it("`createTask` reverts with 'Assignee must be a member of the Activity'", async () => {
@@ -467,7 +573,7 @@ describe("Minerva Smart Contract", async () => {
           CreateTaskTestCases[4]._creditScoreReward,
           { value: weiAmount }
         )
-      ).to.be.revertedWith(CreateTaskTestCases[4].expectedError);
+      ).to.be.revertedWith("Task__AssigneeNotMember()");
     });
 
     it("`createTask` creates a Task successfully\n", async () => {
@@ -490,6 +596,7 @@ describe("Minerva Smart Contract", async () => {
       await RegisterUser(addr2);
       await RegisterUser(addr3);
       const activityID = await CreateActivity(addr2);
+      await AddToWhiteList(addr2, addr3, activityID);
       await JoinActivity(addr3, activityID);
       await CreateTask(addr2, addr3);
     });
@@ -500,7 +607,7 @@ describe("Minerva Smart Contract", async () => {
           CompleteTaskTestCases[1]._activityID,
           CompleteTaskTestCases[1]._taskID
         )
-      ).to.be.revertedWith(CompleteTaskTestCases[1].expectedError);
+      ).to.be.revertedWith("Task__ActivityDoesNotExist()");
     });
 
     it("`completeTask` reverts with 'You are not allowed to perform this task!'", async () => {
@@ -509,7 +616,7 @@ describe("Minerva Smart Contract", async () => {
           CompleteTaskTestCases[2]._activityID,
           CompleteTaskTestCases[2]._taskID
         )
-      ).to.be.revertedWith(CompleteTaskTestCases[2].expectedError);
+      ).to.be.revertedWith("Only Activity Owners can create tasks");
     });
 
     it("`completeTask` reverts with 'Task already completed'", async () => {

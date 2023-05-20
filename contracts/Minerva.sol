@@ -227,6 +227,12 @@ contract Minerva {
         return i_MinervaActivityContract.getMemberDetails(_memberAddress);
     }
 
+    function getTermsForActivity(
+        uint256 _activityID
+    ) public view returns (ActivityInterface.Terms memory) {
+        return i_MinervaActivityContract.getTermsForActivity(_activityID);
+    }
+
     /**
      * @notice - Donation Interface
      * @dev - [Note]: This interface is used for the following functions:
@@ -302,7 +308,7 @@ contract Minerva {
         emit MoneyWithdrawn(
             msg.sender,
             _activityID,
-            i_MinervaActivityContract.getBalance(_activityID),
+            i_MinervaActivityContract.getDonationBalance(_activityID),
             block.timestamp
         );
     }
@@ -311,6 +317,10 @@ contract Minerva {
         uint256 _activityID
     ) public view returns (IDonationContract.Funder[] memory) {
         return i_MinervaDonationContract.getActivityFunders(_activityID);
+    }
+
+    function doesAddressHavePermission() public view returns (bool) {
+        return i_MinervaDonationContract.doesAddressHavePermission();
     }
 
     /**
@@ -355,8 +365,8 @@ contract Minerva {
         uint _rewardInD,
         uint _dueDate,
         uint _creditScoreReward
-    ) public {
-        i_MinervaTaskContract.createTask(
+    ) public payable {
+        i_MinervaTaskContract.createTask{value: msg.value}(
             _activityID,
             _assignee,
             _title,

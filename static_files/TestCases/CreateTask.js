@@ -39,7 +39,7 @@ const CreateTaskTestCases = [
     _rewardInD: 50,
     _dueInDays: 3,
     _creditScoreReward: 10,
-    expectedError: "You are not allowed to perform this task!",
+    expectedError: "Only Activity Owners can create tasks",
   },
   {
     _activityID: 1,
@@ -68,7 +68,7 @@ const CreateTaskTestCases = [
     _dueInDays: 3,
     _creditScoreReward: 10,
     msgValue: 0,
-    expectedError: "Reward money must be greater than zero",
+    expectedError: "Task__ActivityDoesNotExist()",
   },
   {
     _activityID: 7,

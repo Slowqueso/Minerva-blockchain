@@ -54,6 +54,16 @@ module.exports = async function({ getNamedAccounts, deployments }) {
   );
   await addPermittedAddressTx1.wait();
 
+  const addPermittedAddressToRegistration = async (address) => {
+    const response = await userRegistrationContractInstance.addPermittedAddress(
+      address
+    );
+    await response.wait();
+  };
+
+  await addPermittedAddressToRegistration(MinervaDonationContractAddress);
+  await addPermittedAddressToRegistration(MinervaTaskContractAddress);
+
   const activityContractInstance = new ethers.Contract(
     MinervaActivityContractAddress,
     MinervaActivityContract.abi,

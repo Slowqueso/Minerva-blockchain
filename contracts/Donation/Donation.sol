@@ -33,6 +33,8 @@ interface IDonationContract {
     function getActivityFunders(
         uint256 _activityID
     ) external view returns (Funder[] calldata);
+
+    function doesAddressHavePermission() external view returns (bool);
 }
 
 contract MinervaDonationContract {
@@ -186,11 +188,14 @@ contract MinervaDonationContract {
      * @dev Modifiers - `doesActivityExist`, `onlyActivityOwners`. Events emitted - `MoneyWithdrawn`
      * @notice Function to allow Activity owners to withdraw all the money from their Activity
      */
-    function withdrawAllMoney(uint256 _activityID) public onlyPermitted {
+    function withdrawAllMoney(
+        uint256 _activityID,
+        address userAddress
+    ) public onlyPermitted {
         if (!i_MinervaActivityContract.doesActivityExist(_activityID))
             revert Activity_NotFound();
         require(
-            i_MinervaActivityContract.isActivityOwner(_activityID, msg.sender),
+            i_MinervaActivityContract.isActivityOwner(_activityID, userAddress),
             "You are not the owner"
         );
         require(
@@ -201,7 +206,7 @@ contract MinervaDonationContract {
         );
         uint256 amount = i_MinervaActivityContract
             .getDonationBalanceForActivity(_activityID);
-        (bool sent, ) = payable(msg.sender).call{value: amount}(
+        (bool sent, ) = payable(userAddress).call{value: amount}(
             "Money Withdrawn"
         );
         i_MinervaActivityContract.withdrawDonationMoneyFromActivity(
@@ -218,5 +223,9 @@ contract MinervaDonationContract {
         uint256 _activityID
     ) external view returns (Funder[] memory) {
         return Funders[_activityID];
+    }
+
+    function doesAddressHavePermission() external view returns (bool) {
+        return AddressesPermittedToAccess[msg.sender];
     }
 }
