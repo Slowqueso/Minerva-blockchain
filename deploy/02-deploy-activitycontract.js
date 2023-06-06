@@ -19,6 +19,10 @@ module.exports = async function({ getNamedAccounts, deployments }) {
     UserRegistrationAddress = UserRegistrationContract.address;
     ethPriceFeedAddress = ethUSDAggregator.address;
   } else {
+    const UserRegistrationContract = await deployments.get(
+      "UserRegistrationContract"
+    );
+    UserRegistrationAddress = UserRegistrationContract.address;
     ethPriceFeedAddress = networkConfig[chainId].priceFeedAddress;
   }
 
@@ -35,7 +39,7 @@ module.exports = async function({ getNamedAccounts, deployments }) {
     !developmentChains.includes(network.name) &&
     process.env.ETHERSCAN_API_KEY
   ) {
-    await verify(MinervaActivityContract.address);
+    await verify(MinervaActivityContract.address, [UserRegistrationAddress]);
   }
 };
 module.exports.tags = ["all", "activity"];

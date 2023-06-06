@@ -21,24 +21,33 @@ async function updateAbi() {
 }
 
 const updateContractAddresses = async () => {
-  const Minerva = await ethers.getContract("Minerva");
-  const contractAddresses = JSON.parse(
-    fs.readFileSync(FRONT_END_ADDRESSES_FILE, "utf-8")
-  );
-  if (network.config.chainId.toString() in contractAddresses) {
-    if (
-      !contractAddresses[network.config.chainId.toString()].includes(
-        Minerva.address
-      )
-    ) {
-      contractAddresses[network.config.chainId.toString()].push(
-        Minerva.address
-      );
+  try {
+    console.log("yes");
+    const Minerva = await ethers.getContract("Minerva");
+    console.log("no");
+    const contractAddresses = JSON.parse(
+      fs.readFileSync(FRONT_END_ADDRESSES_FILE, "utf-8")
+    );
+    if (network.config.chainId.toString() in contractAddresses) {
+      if (
+        !contractAddresses[network.config.chainId.toString()].includes(
+          Minerva.address
+        )
+      ) {
+        contractAddresses[network.config.chainId.toString()].push(
+          Minerva.address
+        );
+      }
+    } else {
+      contractAddresses[network.config.chainId.toString()] = [Minerva.address];
     }
-  } else {
-    contractAddresses[network.config.chainId.toString()] = [Minerva.address];
+    fs.writeFileSync(
+      FRONT_END_ADDRESSES_FILE,
+      JSON.stringify(contractAddresses)
+    );
+  } catch (error) {
+    console.log(error);
   }
-  fs.writeFileSync(FRONT_END_ADDRESSES_FILE, JSON.stringify(contractAddresses));
 };
 
 module.exports.tags = ["all", "frontend"];

@@ -33,8 +33,14 @@ contract Minerva {
      * - isUserRegistered()
      * - addUserCredits()
      */
+
+    //Events
+    event UserRegistered(address userAddress, uint256 dateOfRegistration);
+
+    //Functions
     function registerUser() public {
         i_UserRegistrationContract.registerUser(msg.sender);
+        emit UserRegistered(msg.sender, block.timestamp);
     }
 
     function getUserCredits(address userAddress) public view returns (uint256) {

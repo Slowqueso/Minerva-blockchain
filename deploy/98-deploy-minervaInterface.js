@@ -102,7 +102,12 @@ module.exports = async function({ getNamedAccounts, deployments }) {
     !developmentChains.includes(network.name) &&
     process.env.ETHERSCAN_API_KEY
   ) {
-    await verify(MinervaInterfaceContract.address);
+    await verify(MinervaInterfaceContract.address, [
+      UserRegistrationAddress,
+      MinervaActivityContractAddress,
+      MinervaTaskContractAddress,
+      MinervaDonationContractAddress,
+    ]);
   }
 };
 module.exports.tags = ["all", "minerva"];
