@@ -37,7 +37,11 @@ module.exports = async function({ getNamedAccounts, deployments }) {
   log("-----------------------------------------");
   const MinervaDonationContract = await deploy("MinervaDonationContract", {
     from: deployer,
-    args: [MinervaActivityContractAddress, UserRegistrationAddress],
+    args: [
+      MinervaActivityContractAddress,
+      UserRegistrationAddress,
+      ethPriceFeedAddress,
+    ],
     log: true,
     waitConfirmations: network.config.blockConfirmations || 1,
   });
@@ -47,7 +51,11 @@ module.exports = async function({ getNamedAccounts, deployments }) {
     !developmentChains.includes(network.name) &&
     process.env.ETHERSCAN_API_KEY
   ) {
-    await verify(MinervaDonationContract.address, [MinervaActivityContractAddress, UserRegistrationAddress]);
+    await verify(MinervaDonationContract.address, [
+      MinervaActivityContractAddress,
+      UserRegistrationAddress,
+      ethPriceFeedAddress,
+    ]);
   }
 };
 module.exports.tags = ["all", "donation"];

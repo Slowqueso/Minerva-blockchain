@@ -109,6 +109,7 @@ contract MinervaActivityContract {
     UserRegistrationContract private i_UserRegistrationContract;
     address private immutable i_owner;
     uint256 private s_lastUpdated;
+    address private immutable i_priceConvertorContractAddress;
 
     // ------------ Pre Defined Activity Levels ------------
     /**
@@ -129,10 +130,14 @@ contract MinervaActivityContract {
     mapping(uint256 => uint256) internal levelToMaxTasks;
     mapping(address => bool) public AddressesPermittedToAccess;
 
-    constructor(address _UserRegistrationContractAddress) {
+    constructor(
+        address _UserRegistrationContractAddress,
+        address _priceConvertorContractAddress
+    ) {
         i_UserRegistrationContract = UserRegistrationContract(
             _UserRegistrationContractAddress
         );
+        i_priceConvertorContractAddress = _priceConvertorContractAddress;
         i_owner = msg.sender;
         s_lastUpdated = block.timestamp;
         AddressesPermittedToAccess[msg.sender] = true;
@@ -414,8 +419,10 @@ contract MinervaActivityContract {
         uint256 _dateOfJoin = block.timestamp;
         Activity storage activity = Activities[_activityID];
         require(
-            (activity.joinPrice - 1) < msg.value.getConversionRate() &&
-                msg.value.getConversionRate() <= (activity.joinPrice + 1),
+            (activity.joinPrice - 1) <
+                msg.value.getConversionRate(i_priceConvertorContractAddress) &&
+                msg.value.getConversionRate(i_priceConvertorContractAddress) <=
+                (activity.joinPrice + 1),
             "Not enough ETH"
         );
         Members[userAddress] = Member(

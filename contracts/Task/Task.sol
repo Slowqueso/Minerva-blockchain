@@ -56,15 +56,18 @@ contract MinervaTaskContract {
     UserRegistrationContract private i_UserRegistrationContract;
     MinervaActivityContract private i_ActivityContract;
     address private immutable i_owner;
+    address private immutable i_priceFeedContractAddress;
     uint256 private taxPercentage;
 
     constructor(
         address _UserRegistrationContractAddress,
-        address _ActivityContractAddress
+        address _ActivityContractAddress,
+        address _priceFeedContractAddress
     ) {
         i_UserRegistrationContract = UserRegistrationContract(
             _UserRegistrationContractAddress
         );
+        i_priceFeedContractAddress = _priceFeedContractAddress;
         i_ActivityContract = MinervaActivityContract(_ActivityContractAddress);
         i_owner = msg.sender;
         AddressesPermittedToAccess[msg.sender] = true;

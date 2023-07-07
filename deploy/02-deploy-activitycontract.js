@@ -26,20 +26,22 @@ module.exports = async function({ getNamedAccounts, deployments }) {
     ethPriceFeedAddress = networkConfig[chainId].priceFeedAddress;
   }
 
-  log("-----------------------------------------");
+  log(`\nDeploying Activity Contract to ${network.name} ...`);
   const MinervaActivityContract = await deploy("MinervaActivityContract", {
     from: deployer,
-    args: [UserRegistrationAddress],
+    args: [UserRegistrationAddress, ethPriceFeedAddress],
     log: true,
     waitConfirmations: network.config.blockConfirmations || 1,
   });
   log(`Activity Contract deployed at: ${MinervaActivityContract.address}`);
-
   if (
     !developmentChains.includes(network.name) &&
     process.env.ETHERSCAN_API_KEY
   ) {
-    await verify(MinervaActivityContract.address, [UserRegistrationAddress]);
+    await verify(MinervaActivityContract.address, [
+      UserRegistrationAddress,
+      ethPriceFeedAddress,
+    ]);
   }
 };
 module.exports.tags = ["all", "activity"];

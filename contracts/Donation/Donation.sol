@@ -40,17 +40,23 @@ interface IDonationContract {
 contract MinervaDonationContract {
     using PriceConvertorLibrary for uint256;
     address private immutable i_owner;
+    address private immutable i_priceFeedContractAddress;
     MinervaActivityContract private i_MinervaActivityContract;
     UserRegistrationContract private i_UserRegistrationContract;
     mapping(address => bool) public AddressesPermittedToAccess;
 
-    constructor(address _MinervaActivityContract, address _UserRegistration) {
+    constructor(
+        address _MinervaActivityContract,
+        address _UserRegistration,
+        address priceFeedContractAddress
+    ) {
         i_MinervaActivityContract = MinervaActivityContract(
             _MinervaActivityContract
         );
         i_UserRegistrationContract = UserRegistrationContract(
             _UserRegistration
         );
+        i_priceFeedContractAddress = priceFeedContractAddress;
         i_owner = msg.sender;
         AddressesPermittedToAccess[msg.sender] = true;
     }
@@ -150,7 +156,9 @@ contract MinervaDonationContract {
             Funder(userAddress, _userPublicID, msg.value)
         );
         (bool sent, ) = payable(i_owner).call{value: taxAmount}("");
-        uint256 credits = actualAmount.getConversionRate() * 10;
+        uint256 credits = actualAmount.getConversionRate(
+            i_priceFeedContractAddress
+        ) * 10;
         i_UserRegistrationContract.addUserCredits(userAddress, credits);
         require(sent, "Failed to send ETH");
     }

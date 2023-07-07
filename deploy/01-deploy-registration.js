@@ -9,13 +9,6 @@ module.exports = async function({ getNamedAccounts, deployments }) {
   const { deploy, log } = deployments;
   const { deployer } = await getNamedAccounts();
   const chainId = network.config.chainId;
-  let ethPriceFeedAddress;
-  if (developmentChains.includes(network.name)) {
-    const ethUSDAggregator = await deployments.get("MockV3Aggregator");
-    ethPriceFeedAddress = ethUSDAggregator.address;
-  } else {
-    ethPriceFeedAddress = networkConfig[chainId].priceFeedAddress;
-  }
 
   log("-----------------------------------------");
   const RegistrationContract = await deploy("UserRegistrationContract", {

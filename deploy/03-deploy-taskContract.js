@@ -37,7 +37,11 @@ module.exports = async function({ getNamedAccounts, deployments }) {
   log("-----------------------------------------");
   const MinervaTaskContract = await deploy("MinervaTaskContract", {
     from: deployer,
-    args: [UserRegistrationAddress, MinervaActivityContractAddress],
+    args: [
+      UserRegistrationAddress,
+      MinervaActivityContractAddress,
+      ethPriceFeedAddress,
+    ],
     log: true,
     waitConfirmations: network.config.blockConfirmations || 1,
   });
@@ -47,7 +51,11 @@ module.exports = async function({ getNamedAccounts, deployments }) {
     !developmentChains.includes(network.name) &&
     process.env.ETHERSCAN_API_KEY
   ) {
-    await verify(MinervaTaskContract.address, [UserRegistrationAddress, MinervaActivityContractAddress]);
+    await verify(MinervaTaskContract.address, [
+      UserRegistrationAddress,
+      MinervaActivityContractAddress,
+      ethPriceFeedAddress,
+    ]);
   }
 };
 module.exports.tags = ["all", "task"];

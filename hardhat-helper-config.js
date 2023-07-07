@@ -9,6 +9,11 @@ const networkConfig = {
     priceFeedAddress: "0xD4a33860578De61DBAbDc8BFdb98FD742fA7028e",
     RPC_URL: process.env.GOERLI_RPC_RUL,
   },
+  80001: {
+    name: "polygon",
+    priceFeedAddress: "0xd0D5e3DB44DE05E9F294BB0a3bEEaF030DE24Ada",
+    RPC_URL: process.env.MUMBAI_RPC_URL,
+  },
 };
 
 const developmentChains = ["hardhat", "localhost"];
